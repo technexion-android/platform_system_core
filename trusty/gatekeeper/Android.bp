@@ -52,6 +52,4 @@ cc_binary {
         "libcutils",
         "libtrusty",
     ],
-
-    vintf_fragments: ["android.hardware.gatekeeper@1.0-service.trusty.xml"],
 }
