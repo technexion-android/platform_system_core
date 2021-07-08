@@ -120,7 +120,7 @@ static unique_fd read_file(const char* file_name, off64_t* out_file_size) {
     }
 
     BufferAllocator alloc;
-    unique_fd dmabuf_fd(alloc.Alloc(kDmabufSystemHeapName, file_page_size));
+    unique_fd dmabuf_fd(alloc.Alloc("reserved", file_page_size));
     if (!dmabuf_fd.ok()) {
         LOG(ERROR) << "Error creating dmabuf: " << dmabuf_fd.get();
         return dmabuf_fd;
