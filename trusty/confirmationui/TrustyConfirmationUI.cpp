@@ -41,6 +41,9 @@
 #include <thread>
 #include <tuple>
 #include <vector>
+#ifdef ENABLE_SECURE_DISPLAY
+#include <nxp/hardware/display/1.0/IDisplay.h>
+#endif
 
 namespace android {
 namespace hardware {
@@ -72,6 +75,12 @@ using TeeuiRc = ::teeui::ResponseCode;
 
 constexpr const char kTrustyDeviceName[] = "/dev/trusty-ipc-dev0";
 constexpr const char kConfirmationuiAppName[] = CONFIRMATIONUI_PORT;
+
+#ifdef ENABLE_SECURE_DISPLAY
+using ::nxp::hardware::display::V1_0::Error;
+using ::android::hardware::Return;
+using ::android::hardware::Void;
+#endif
 
 namespace {
 
@@ -135,7 +144,6 @@ inline MsgVector<teeui::UIOption> hidl2MsgVector(const hidl_vec<UIOption>& v) {
 }
 
 }  // namespace
-
 TrustyConfirmationUI::TrustyConfirmationUI()
     : listener_state_(ListenerState::None), prompt_result_(ResponseCode::Ignored) {}
 
@@ -148,6 +156,22 @@ TrustyConfirmationUI::~TrustyConfirmationUI() {
         callback_thread_.join();
     }
 }
+
+#ifdef ENABLE_SECURE_DISPLAY
+void TrustyConfirmationUI::enable_secure_display(bool enable) {
+    if (display_.get() == nullptr) {
+        sp<IDisplay> display = IDisplay::getService();
+        if (display.get() == nullptr) {
+            LOG(ERROR) << "confirmationui getService display failed";
+            return;
+        } else {
+            LOG(INFO) << "confirmationui getService display successfully";
+            display_ = display;
+        }
+    }
+    display_->setSecureDisplayEnable(enable);
+}
+#endif
 
 std::tuple<TeeuiRc, MsgVector<uint8_t>, MsgVector<uint8_t>>
 TrustyConfirmationUI::promptUserConfirmation_(const MsgString& promptText,
@@ -281,7 +305,10 @@ TrustyConfirmationUI::promptUserConfirmation_(const MsgString& promptText,
         LOG(INFO) << "Calling abort for cleanup";
         app->issueCmd<AbortMsg>();
     });
-
+#ifdef ENABLE_SECURE_DISPLAY
+    // enable secure display
+    enable_secure_display(true);
+#endif
     // initiate prompt
     LOG(INFO) << "Initiating prompt";
     TrustyAppError error;
@@ -380,6 +407,11 @@ TrustyConfirmationUI::promptUserConfirmation_(const MsgString& promptText,
     if (error != TrustyAppError::OK) {
         result = {TeeuiRc::SystemError, {}, {}};
     }
+
+#ifdef ENABLE_SECURE_DISPLAY
+    // disable secure display
+    enable_secure_display(false);
+#endif
     return result;
 
     //  ############################## Start 4th Phase - cleanup ##################################
@@ -411,7 +443,6 @@ Return<ResponseCode> TrustyConfirmationUI::promptUserConfirmation(
     }
 
     assert(listener_state_ == ListenerState::None);
-
     callback_thread_ = std::thread(
         [this](sp<IConfirmationResultCallback> resultCB, hidl_string promptText,
                hidl_vec<uint8_t> extraData, hidl_string locale, hidl_vec<UIOption> uiOptions) {

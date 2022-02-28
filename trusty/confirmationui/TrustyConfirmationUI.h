@@ -30,6 +30,10 @@
 
 #include "TrustyApp.h"
 
+#ifdef ENABLE_SECURE_DISPLAY
+#include <nxp/hardware/display/1.0/IDisplay.h>
+#endif
+
 namespace android {
 namespace hardware {
 namespace confirmationui {
@@ -44,7 +48,9 @@ using ::android::hardware::Return;
 using ::android::hardware::Void;
 
 using ::android::trusty::confirmationui::TrustyApp;
-
+#ifdef ENABLE_SECURE_DISPLAY
+using ::nxp::hardware::display::V1_0::IDisplay;
+#endif
 class TrustyConfirmationUI : public IConfirmationUI {
   public:
     TrustyConfirmationUI();
@@ -93,6 +99,10 @@ class TrustyConfirmationUI : public IConfirmationUI {
                             const teeui::MsgVector<uint8_t>& extraData,
                             const teeui::MsgString& locale,
                             const teeui::MsgVector<teeui::UIOption>& uiOptions);
+#ifdef ENABLE_SECURE_DISPLAY
+    sp<IDisplay> display_;
+    void enable_secure_display(bool enable);
+#endif
 };
 
 }  // namespace implementation
