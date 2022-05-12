@@ -64,6 +64,8 @@ using ::teeui::MsgVector;
 using ::teeui::PromptUserConfirmationMsg;
 using ::teeui::PromptUserConfirmationResponse;
 using ::teeui::ResultMsg;
+using ::teeui::GetSecureUIParamsMsg;
+using ::teeui::GetSecureUIParamsResponse;
 
 using ::secure_input::createSecureInput;
 
@@ -158,7 +160,8 @@ TrustyConfirmationUI::~TrustyConfirmationUI() {
 }
 
 #ifdef ENABLE_SECURE_DISPLAY
-void TrustyConfirmationUI::enable_secure_display(bool enable) {
+void TrustyConfirmationUI::enable_secure_display(bool enable, uint32_t x, uint32_t y,
+                                                 uint32_t w, uint32_t h) {
     if (display_.get() == nullptr) {
         sp<IDisplay> display = IDisplay::getService();
         if (display.get() == nullptr) {
@@ -169,7 +172,7 @@ void TrustyConfirmationUI::enable_secure_display(bool enable) {
             display_ = display;
         }
     }
-    display_->setSecureDisplayEnable(enable);
+    display_->setSecureDisplayEnable(enable, x, y, w, h);
 }
 #endif
 
@@ -305,13 +308,22 @@ TrustyConfirmationUI::promptUserConfirmation_(const MsgString& promptText,
         LOG(INFO) << "Calling abort for cleanup";
         app->issueCmd<AbortMsg>();
     });
+
+    TrustyAppError error;
 #ifdef ENABLE_SECURE_DISPLAY
     // enable secure display
-    enable_secure_display(true);
+    std::tuple<TeeuiRc, MsgVector<uint32_t>> secureui_params;
+    std::tie(error, secureui_params) = app->issueCmd<GetSecureUIParamsMsg, GetSecureUIParamsResponse>();
+    if (error != TrustyAppError::OK) {
+        LOG(ERROR) << "GetSecureUIParamsMsg failed: " << int32_t(error);
+        return result;
+    }
+    uint32_t params[4];
+    memcpy(params, (std::get<1>(secureui_params)).data(), sizeof(uint32_t)*4);
+    enable_secure_display(true, params[0], params[1], params[2], params[3]);
 #endif
     // initiate prompt
     LOG(INFO) << "Initiating prompt";
-    TrustyAppError error;
     auto initResponse = std::tie(rc);
     std::tie(error, initResponse) =
         app->issueCmd<PromptUserConfirmationMsg, PromptUserConfirmationResponse>(
@@ -410,7 +422,7 @@ TrustyConfirmationUI::promptUserConfirmation_(const MsgString& promptText,
 
 #ifdef ENABLE_SECURE_DISPLAY
     // disable secure display
-    enable_secure_display(false);
+    enable_secure_display(false, 0,0,0,0);
 #endif
     return result;
 
